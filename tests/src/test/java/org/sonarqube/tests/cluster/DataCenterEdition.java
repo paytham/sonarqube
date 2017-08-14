@@ -22,10 +22,8 @@ package org.sonarqube.tests.cluster;
 
 import java.util.concurrent.ExecutionException;
 
-import static java.util.EnumSet.of;
-import static org.sonarqube.tests.cluster.Cluster.NodeType.CE;
-import static org.sonarqube.tests.cluster.Cluster.NodeType.ES;
-import static org.sonarqube.tests.cluster.Cluster.NodeType.WEB;
+import static org.sonarqube.tests.cluster.Cluster.NodeType.APPLICATION;
+import static org.sonarqube.tests.cluster.Cluster.NodeType.SEARCH;
 
 public class DataCenterEdition {
 
@@ -33,11 +31,11 @@ public class DataCenterEdition {
 
   public DataCenterEdition() {
     cluster = Cluster.builder()
-      .addNode(of(ES))
-      .addNode(of(ES))
-      .addNode(of(ES))
-      .addNode(of(WEB, CE))
-      .addNode(of(WEB, CE))
+      .addNode(SEARCH)
+      .addNode(SEARCH)
+      .addNode(SEARCH)
+      .addNode(APPLICATION)
+      .addNode(APPLICATION)
       .build();
   }
 
@@ -47,5 +45,9 @@ public class DataCenterEdition {
 
   public void start() throws ExecutionException, InterruptedException {
     cluster.start();
+  }
+
+  public Cluster getCluster() {
+    return cluster;
   }
 }
