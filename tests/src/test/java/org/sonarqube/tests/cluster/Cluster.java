@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 
@@ -103,6 +104,18 @@ public class Cluster {
         node -> node.getOrchestrator().stop()
       )
     ).get();
+  }
+
+  public void stopAll(Predicate<Node> predicate) {
+    nodes.stream()
+      .filter(predicate)
+      .forEach(n -> n.getOrchestrator().stop());
+  }
+
+  public void startAll(Predicate<Node> predicate) {
+    nodes.stream()
+      .filter(predicate)
+      .forEach(n -> n.getOrchestrator().start());
   }
 
   public List<Node> getNodes() {
