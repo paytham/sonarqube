@@ -66,7 +66,7 @@ public class CommandFactoryImpl implements CommandFactory {
 
     File logDir = new File(settingsMap.get("path.logs"));
     File confDir = new File(settingsMap.get("path.conf"));
-    Path jvmOptionsFile = confDir.toPath().resolve("jvm.options");
+    Path confPath = confDir.toPath();
     EsCommand res = new EsCommand(ProcessId.ELASTICSEARCH)
       .setWorkDir(executable.getParentFile().getParentFile())
       .setExecutable(executable)
@@ -78,11 +78,10 @@ public class CommandFactoryImpl implements CommandFactory {
       .setPort(Integer.valueOf(settingsMap.get("transport.tcp.port")))
       .addJvmOption(settings.getProps().nonNullValue(ProcessProperties.SEARCH_JAVA_OPTS))
       .addJvmOption(settings.getProps().nonNullValue(ProcessProperties.SEARCH_JAVA_ADDITIONAL_OPTS))
-      .setJvmOptionsFile(jvmOptionsFile)
-      .setEnvVariable("ES_JVM_OPTIONS", jvmOptionsFile.toString())
+      .addEsOption("-Epath.conf=" + confPath)
       .setEnvVariable("JAVA_HOME", System.getProperties().getProperty("java.home"));
 
-    settingsMap.forEach((key, value) -> res.addEsOption("-E" + key + "=" + value));
+    settingsMap.forEach(res::putElasticsearchSetting);
 
     return res;
   }

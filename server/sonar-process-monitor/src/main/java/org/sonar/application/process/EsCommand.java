@@ -20,9 +20,10 @@
 package org.sonar.application.process;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import org.sonar.process.ProcessId;
 
@@ -35,7 +36,7 @@ public class EsCommand extends AbstractCommand<EsCommand> {
   private Properties log4j2Properties;
   private List<String> esOptions = new ArrayList<>();
   private List<String> jvmOptions = new ArrayList<>();
-  private Path jvmOptionsFile;
+  private Map<String, String> elasticsearchSettings = new HashMap<>();
 
   public EsCommand(ProcessId id) {
     super(id);
@@ -117,12 +118,12 @@ public class EsCommand extends AbstractCommand<EsCommand> {
     return this;
   }
 
-  public Path getJvmOptionsFile() {
-    return jvmOptionsFile;
+  public Map<String, String> getElasticsearchSettings() {
+    return elasticsearchSettings;
   }
 
-  public EsCommand setJvmOptionsFile(Path jvmOptionsFile) {
-    this.jvmOptionsFile = jvmOptionsFile;
+  public EsCommand putElasticsearchSetting(String k, String v) {
+    elasticsearchSettings.put(k, v);
     return this;
   }
 }
