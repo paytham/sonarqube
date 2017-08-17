@@ -33,7 +33,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.sonar.api.resources.Qualifiers;
-import org.sonar.api.utils.DateUtils;
 import org.sonar.api.utils.System2;
 import org.sonar.db.DbSession;
 import org.sonar.db.DbTester;
@@ -47,6 +46,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.guava.api.Assertions.assertThat;
 import static org.sonar.db.component.ComponentTesting.newDirectory;
 import static org.sonar.db.component.ComponentTesting.newFileDto;
@@ -84,24 +84,28 @@ public class ComponentDaoTest {
 
   @Test
   public void get_by_uuid() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    OrganizationDto organization = db.organizations().insert();
+    ComponentDto project = db.components().insertPrivateProject(organization, p -> p
+      .setDbKey("org.struts:struts")
+      .setName("Struts")
+      .setLongName("Apache Struts"));
+    ComponentDto anotherProject = db.components().insertPrivateProject(organization);
 
-    ComponentDto result = underTest.selectByUuid(dbSession, "U1").get();
+    ComponentDto result = underTest.selectByUuid(dbSession, project.uuid()).get();
     assertThat(result).isNotNull();
-    assertThat(result.getOrganizationUuid()).isEqualTo("org1");
-    assertThat(result.uuid()).isEqualTo("U1");
-    assertThat(result.getUuidPath()).isEqualTo("uuid_path_of_U1");
-    assertThat(result.moduleUuid()).isEqualTo("module_uuid_of_U1");
-    assertThat(result.moduleUuidPath()).isEqualTo("module_uuid_path_of_U1");
-    assertThat(result.getRootUuid()).isEqualTo("U1");
-    assertThat(result.projectUuid()).isEqualTo("U1");
+    assertThat(result.getOrganizationUuid()).isEqualTo(organization.getUuid());
+    assertThat(result.uuid()).isEqualTo(project.uuid());
+    assertThat(result.getUuidPath()).isEqualTo(".");
+    assertThat(result.moduleUuid()).isNull();
+    assertThat(result.moduleUuidPath()).isEqualTo("." + project.uuid() + ".");
+    assertThat(result.projectUuid()).isEqualTo(project.uuid());
     assertThat(result.getDbKey()).isEqualTo("org.struts:struts");
-    assertThat(result.path()).isEqualTo("path_of_U1");
+    assertThat(result.path()).isNull();
     assertThat(result.name()).isEqualTo("Struts");
     assertThat(result.longName()).isEqualTo("Apache Struts");
     assertThat(result.qualifier()).isEqualTo("TRK");
     assertThat(result.scope()).isEqualTo("PRJ");
-    assertThat(result.language()).isEqualTo("java");
+    assertThat(result.language()).isNull();
     assertThat(result.getCopyResourceUuid()).isNull();
     assertThat(result.getDeveloperUuid()).isNull();
     assertThat(result.isPrivate()).isTrue();
@@ -111,242 +115,226 @@ public class ComponentDaoTest {
 
   @Test
   public void get_by_uuid_on_technical_project_copy() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto view = db.components().insertView();
+    ComponentDto project = db.components().insertPublicProject(p -> p
+      .setDbKey("org.struts:struts")
+      .setName("Struts")
+      .setLongName("Apache Struts"));
+    ComponentDto projectCopy = db.components().insertComponent(newProjectCopy(project, view));
+    ComponentDto anotherProject = db.components().insertPrivateProject();
+    ComponentDto anotherProjectCopy = db.components().insertComponent(newProjectCopy(anotherProject, view));
 
-    ComponentDto result = underTest.selectByUuid(dbSession, "U7").get();
-    assertThat(result).isNotNull();
-    assertThat(result.uuid()).isEqualTo("U7");
-    assertThat(result.moduleUuid()).isEqualTo("module_uuid_of_U7");
-    assertThat(result.moduleUuidPath()).isEqualTo("module_uuid_path_of_U7");
-    assertThat(result.getRootUuid()).isEqualTo("root_uuid_of_U7");
-    assertThat(result.projectUuid()).isEqualTo("project_uuid_of_U7");
-    assertThat(result.getDbKey()).isEqualTo("DEV:anakin@skywalker.name:org.struts:struts");
+    ComponentDto result = underTest.selectByUuid(dbSession, projectCopy.uuid()).get();
+    assertThat(result.uuid()).isEqualTo(projectCopy.uuid());
+    assertThat(result.moduleUuid()).isEqualTo(view.uuid());
+    assertThat(result.moduleUuidPath()).isEqualTo("." + view.uuid() + ".");
+    assertThat(result.projectUuid()).isEqualTo(view.uuid());
+    assertThat(result.getDbKey()).isEqualTo(view.getDbKey() + project.getDbKey());
     assertThat(result.path()).isNull();
-    assertThat(result.name()).isEqualTo("Apache Struts");
+    assertThat(result.name()).isEqualTo("Struts");
     assertThat(result.longName()).isEqualTo("Apache Struts");
-    assertThat(result.qualifier()).isEqualTo("DEV_PRJ");
-    assertThat(result.scope()).isEqualTo("PRJ");
+    assertThat(result.qualifier()).isEqualTo("TRK");
+    assertThat(result.scope()).isEqualTo("FIL");
     assertThat(result.language()).isNull();
-    assertThat(result.getCopyResourceUuid()).isEqualTo("U1");
-    assertThat(result.getDeveloperUuid()).isEqualTo("developer_uuid_of_U7");
+    assertThat(result.getCopyResourceUuid()).isEqualTo(project.uuid());
     assertThat(result.isPrivate()).isFalse();
   }
 
   @Test
-  public void selectByUuidon_developer_project_copy() {
-    db.prepareDbUnit(getClass(), "shared.xml");
-
-    ComponentDto result = underTest.selectByUuid(dbSession, "U7").get();
-    assertThat(result.getDeveloperUuid()).isEqualTo("developer_uuid_of_U7");
-  }
-
-  @Test
   public void selectByUuid_on_disabled_component() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto enabledProject = db.components().insertPublicProject(p -> p.setEnabled(true));
+    ComponentDto disabledProject = db.components().insertPublicProject(p -> p.setEnabled(false));
 
-    ComponentDto result = underTest.selectByUuid(dbSession, "U5").get();
+    ComponentDto result = underTest.selectByUuid(dbSession, disabledProject.uuid()).get();
     assertThat(result).isNotNull();
-    assertThat(result.uuid()).isEqualTo("U5");
     assertThat(result.isEnabled()).isFalse();
   }
 
   @Test
   public void selectOrFailByUuid_fails_when_component_not_found() {
-    expectedException.expect(RowNotFoundException.class);
+    db.components().insertPublicProject();
 
-    db.prepareDbUnit(getClass(), "shared.xml");
+    expectedException.expect(RowNotFoundException.class);
 
     underTest.selectOrFailByUuid(dbSession, "unknown");
   }
 
   @Test
   public void selectByKey() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    OrganizationDto organization = db.organizations().insert();
+    ComponentDto project = db.components().insertPrivateProject(organization);
+    ComponentDto directory = db.components().insertComponent(newDirectory(project, "src"));
+    ComponentDto file = db.components().insertComponent(newFileDto(directory)
+      .setName("RequestContext.java")
+      .setLongName("org.struts.RequestContext")
+      .setLanguage("java")
+      .setPath("src/RequestContext.java"));
 
-    Optional<ComponentDto> optional = underTest.selectByKey(dbSession, "org.struts:struts-core:src/org/struts/RequestContext.java");
-    assertThat(optional).isPresent();
+    Optional<ComponentDto> optional = underTest.selectByKey(dbSession, file.getDbKey());
 
     ComponentDto result = optional.get();
-    assertThat(result.getOrganizationUuid()).isEqualTo("org1");
-    assertThat(result.uuid()).isEqualTo("U4");
-    assertThat(result.getDbKey()).isEqualTo("org.struts:struts-core:src/org/struts/RequestContext.java");
-    assertThat(result.path()).isEqualTo("path_of_U4");
+    assertThat(result.getOrganizationUuid()).isEqualTo(organization.getUuid());
+    assertThat(result.uuid()).isEqualTo(file.uuid());
+    assertThat(result.getDbKey()).isEqualTo(file.getDbKey());
+    assertThat(result.path()).isEqualTo("src/RequestContext.java");
     assertThat(result.name()).isEqualTo("RequestContext.java");
     assertThat(result.longName()).isEqualTo("org.struts.RequestContext");
     assertThat(result.qualifier()).isEqualTo("FIL");
     assertThat(result.scope()).isEqualTo("FIL");
     assertThat(result.language()).isEqualTo("java");
-    assertThat(result.getRootUuid()).isEqualTo("U1");
+    assertThat(result.projectUuid()).isEqualTo(project.uuid());
 
     assertThat(underTest.selectByKey(dbSession, "unknown")).isAbsent();
   }
 
   @Test
   public void selectOrFailByKey_fails_when_component_not_found() {
-    expectedException.expect(RowNotFoundException.class);
+    db.components().insertPrivateProject();
 
-    db.prepareDbUnit(getClass(), "shared.xml");
+    expectedException.expect(RowNotFoundException.class);
 
     underTest.selectOrFailByKey(dbSession, "unknown");
   }
 
   @Test
   public void get_by_key_on_disabled_component() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project = db.components().insertPrivateProject(p -> p.setEnabled(false));
 
-    ComponentDto result = underTest.selectOrFailByKey(dbSession, "org.disabled.project");
+    ComponentDto result = underTest.selectOrFailByKey(dbSession, project.getKey());
+
     assertThat(result.isEnabled()).isFalse();
   }
 
   @Test
   public void get_by_key_on_a_root_project() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project = db.components().insertPrivateProject();
 
-    ComponentDto result = underTest.selectOrFailByKey(dbSession, "org.struts:struts");
-    assertThat(result.getDbKey()).isEqualTo("org.struts:struts");
-    assertThat(result.uuid()).isEqualTo("U1");
-    assertThat(result.getUuidPath()).isEqualTo("uuid_path_of_U1");
-    assertThat(result.deprecatedKey()).isEqualTo("org.struts:struts");
-    assertThat(result.path()).isEqualToIgnoringCase("path_of_U1");
-    assertThat(result.name()).isEqualTo("Struts");
-    assertThat(result.longName()).isEqualTo("Apache Struts");
-    assertThat(result.description()).isEqualTo("the description");
-    assertThat(result.qualifier()).isEqualTo("TRK");
-    assertThat(result.scope()).isEqualTo("PRJ");
-    assertThat(result.getRootUuid()).isEqualTo("U1");
-    assertThat(result.projectUuid()).isEqualTo("U1");
+    ComponentDto result = underTest.selectOrFailByKey(dbSession, project.getKey());
+
+    assertThat(result.getDbKey()).isEqualTo(project.getDbKey());
+    assertThat(result.uuid()).isEqualTo(project.uuid());
+    assertThat(result.getUuidPath()).isEqualTo(project.getUuidPath());
+    assertThat(result.getRootUuid()).isEqualTo(project.uuid());
+    assertThat(result.projectUuid()).isEqualTo(project.uuid());
   }
 
   @Test
   public void get_by_keys() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project1 = db.components().insertPrivateProject();
+    ComponentDto project2 = db.components().insertPrivateProject();
 
-    List<ComponentDto> results = underTest.selectByKeys(dbSession, singletonList("org.struts:struts-core:src/org/struts/RequestContext.java"));
-    assertThat(results).hasSize(1);
+    List<ComponentDto> results = underTest.selectByKeys(dbSession, asList(project1.getKey(), project2.getKey()));
 
-    ComponentDto result = results.get(0);
-    assertThat(result).isNotNull();
-    assertThat(result.getDbKey()).isEqualTo("org.struts:struts-core:src/org/struts/RequestContext.java");
-    assertThat(result.path()).isEqualTo("path_of_U4");
-    assertThat(result.name()).isEqualTo("RequestContext.java");
-    assertThat(result.longName()).isEqualTo("org.struts.RequestContext");
-    assertThat(result.qualifier()).isEqualTo("FIL");
-    assertThat(result.scope()).isEqualTo("FIL");
-    assertThat(result.language()).isEqualTo("java");
-    assertThat(result.getRootUuid()).isEqualTo("U1");
+    assertThat(results)
+      .extracting(ComponentDto::uuid, ComponentDto::getKey)
+      .containsExactlyInAnyOrder(
+        tuple(project1.uuid(), project1.getKey()),
+        tuple(project2.uuid(), project2.getKey()));
 
     assertThat(underTest.selectByKeys(dbSession, singletonList("unknown"))).isEmpty();
   }
 
   @Test
   public void get_by_ids() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project1 = db.components().insertPrivateProject();
+    ComponentDto project2 = db.components().insertPrivateProject();
 
-    List<ComponentDto> results = underTest.selectByIds(dbSession, newArrayList(4L));
-    assertThat(results).hasSize(1);
+    List<ComponentDto> results = underTest.selectByIds(dbSession, asList(project1.getId(), project2.getId()));
 
-    ComponentDto result = results.get(0);
-    assertThat(result).isNotNull();
-    assertThat(result.getDbKey()).isEqualTo("org.struts:struts-core:src/org/struts/RequestContext.java");
-    assertThat(result.path()).isEqualTo("path_of_U4");
-    assertThat(result.name()).isEqualTo("RequestContext.java");
-    assertThat(result.longName()).isEqualTo("org.struts.RequestContext");
-    assertThat(result.qualifier()).isEqualTo("FIL");
-    assertThat(result.scope()).isEqualTo("FIL");
-    assertThat(result.language()).isEqualTo("java");
-    assertThat(result.getRootUuid()).isEqualTo("U1");
+    assertThat(results)
+      .extracting(ComponentDto::uuid, ComponentDto::getKey)
+      .containsExactlyInAnyOrder(
+        tuple(project1.uuid(), project1.getKey()),
+        tuple(project2.uuid(), project2.getKey()));
 
-    assertThat(underTest.selectByIds(dbSession, newArrayList(555L))).isEmpty();
+    assertThat(underTest.selectByIds(dbSession, singletonList(0L))).isEmpty();
   }
 
   @Test
   public void get_by_uuids() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project1 = db.components().insertPrivateProject();
+    ComponentDto project2 = db.components().insertPrivateProject();
 
-    List<ComponentDto> results = underTest.selectByUuids(dbSession, newArrayList("U4"));
-    assertThat(results).hasSize(1);
+    List<ComponentDto> results = underTest.selectByUuids(dbSession, asList(project1.uuid(), project2.uuid()));
 
-    ComponentDto result = results.get(0);
-    assertThat(result.getOrganizationUuid()).isEqualTo("org1");
-    assertThat(result.uuid()).isEqualTo("U4");
-    assertThat(result.moduleUuid()).isEqualTo("module_uuid_of_U4");
-    assertThat(result.moduleUuidPath()).isEqualTo("module_uuid_path_of_U4");
-    assertThat(result.getRootUuid()).isEqualTo("U1");
-    assertThat(result.projectUuid()).isEqualTo("U1");
-    assertThat(result.getDbKey()).isEqualTo("org.struts:struts-core:src/org/struts/RequestContext.java");
-    assertThat(result.path()).isEqualTo("path_of_U4");
-    assertThat(result.name()).isEqualTo("RequestContext.java");
-    assertThat(result.longName()).isEqualTo("org.struts.RequestContext");
-    assertThat(result.qualifier()).isEqualTo("FIL");
-    assertThat(result.scope()).isEqualTo("FIL");
-    assertThat(result.language()).isEqualTo("java");
+    assertThat(results)
+      .extracting(ComponentDto::uuid, ComponentDto::getKey)
+      .containsExactlyInAnyOrder(
+        tuple(project1.uuid(), project1.getKey()),
+        tuple(project2.uuid(), project2.getKey()));
 
-    assertThat(underTest.selectByUuids(dbSession, newArrayList("unknown"))).isEmpty();
+    assertThat(underTest.selectByUuids(dbSession, singletonList("unknown"))).isEmpty();
   }
 
   @Test
   public void get_by_uuids_on_removed_components() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project1 = db.components().insertPrivateProject();
+    ComponentDto project2 = db.components().insertPrivateProject(p -> p.setEnabled(false));
 
-    List<ComponentDto> results = underTest.selectByUuids(dbSession, newArrayList("U5"));
-    assertThat(results).hasSize(1);
+    List<ComponentDto> results = underTest.selectByUuids(dbSession, asList(project1.uuid(), project2.uuid()));
 
-    ComponentDto result = results.get(0);
-    assertThat(result).isNotNull();
-    assertThat(result.uuid()).isEqualTo("U5");
-    assertThat(result.isEnabled()).isFalse();
+    assertThat(results)
+      .extracting(ComponentDto::getKey, ComponentDto::isEnabled)
+      .containsExactlyInAnyOrder(
+        tuple(project1.getDbKey(), true),
+        tuple(project2.getDbKey(), false));
   }
 
   @Test
   public void select_existing_uuids() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project1 = db.components().insertPrivateProject();
+    ComponentDto project2 = db.components().insertPrivateProject(p -> p.setEnabled(false));
 
-    List<String> results = underTest.selectExistingUuids(dbSession, newArrayList("U4"));
-    assertThat(results).containsOnly("U4");
-
-    assertThat(underTest.selectExistingUuids(dbSession, newArrayList("U4", "unknown"))).hasSize(1);
-    assertThat(underTest.selectExistingUuids(dbSession, newArrayList("unknown"))).isEmpty();
+    assertThat(underTest.selectExistingUuids(dbSession, asList(project1.uuid(), project2.uuid()))).containsExactlyInAnyOrder(project1.uuid(), project2.uuid());
+    assertThat(underTest.selectExistingUuids(dbSession, asList(project1.uuid(), "unknown"))).containsExactlyInAnyOrder(project1.uuid());
+    assertThat(underTest.selectExistingUuids(dbSession, singletonList("unknown"))).isEmpty();
   }
 
   @Test
   public void get_by_id() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project = db.components().insertPrivateProject();
 
-    assertThat(underTest.selectOrFailById(dbSession, 4L)).isNotNull();
+    assertThat(underTest.selectOrFailById(dbSession, project.getId())).isNotNull();
   }
 
   @Test
   public void get_by_id_on_disabled_component() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto enabledProject = db.components().insertPrivateProject();
+    ComponentDto disabledProject = db.components().insertPrivateProject(p -> p.setEnabled(false));
 
-    Optional<ComponentDto> result = underTest.selectById(dbSession, 10L);
+    Optional<ComponentDto> result = underTest.selectById(dbSession, disabledProject.getId());
     assertThat(result).isPresent();
     assertThat(result.get().isEnabled()).isFalse();
   }
 
-  @Test(expected = RowNotFoundException.class)
+  @Test
   public void fail_to_get_by_id_when_project_not_found() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project = db.components().insertPrivateProject();
 
-    underTest.selectOrFailById(dbSession, 111L);
+    expectedException.expect(RowNotFoundException.class);
+
+    underTest.selectOrFailById(dbSession, 0L);
   }
 
   @Test
   public void get_nullable_by_id() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project = db.components().insertPrivateProject();
 
-    assertThat(underTest.selectById(dbSession, 4L)).isPresent();
-    assertThat(underTest.selectById(dbSession, 111L)).isAbsent();
+    assertThat(underTest.selectById(dbSession, project.getId())).isPresent();
+    assertThat(underTest.selectById(dbSession, 0L)).isAbsent();
   }
 
   @Test
   public void select_component_keys_by_qualifiers() {
-    db.prepareDbUnit(getClass(), "shared.xml");
+    ComponentDto project = db.components().insertPrivateProject();
+    ComponentDto module = db.components().insertComponent(newModuleDto(project));
+    ComponentDto directory = db.components().insertComponent(newDirectory(module, "src"));
+    ComponentDto file = db.components().insertComponent(newFileDto(directory));
 
-    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("TRK"))).extracting("kee").containsOnly("org.struts:struts", "org.disabled.project");
-    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("BRC"))).extracting("kee").containsOnly("org.struts:struts-core");
-    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("DIR"))).extracting("kee").containsOnly("org.struts:struts-core:src/org/struts");
-    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("FIL"))).extracting("kee").containsOnly("org.struts:struts-core:src/org/struts/RequestContext.java");
+    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("TRK"))).extracting(ComponentDto::getDbKey).containsExactlyInAnyOrder(project.getDbKey());
+    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("BRC"))).extracting(ComponentDto::getDbKey).containsExactlyInAnyOrder(module.getDbKey());
+    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("DIR"))).extracting(ComponentDto::getDbKey).containsExactlyInAnyOrder(directory.getDbKey());
+    assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("FIL"))).extracting(ComponentDto::getDbKey).containsExactlyInAnyOrder(file.getDbKey());
     assertThat(underTest.selectComponentsByQualifiers(dbSession, newHashSet("unknown"))).isEmpty();
   }
 
@@ -355,41 +343,45 @@ public class ComponentDaoTest {
     expectedException.expect(IllegalArgumentException.class);
     expectedException.expectMessage("Qualifiers cannot be empty");
 
-    db.prepareDbUnit(getClass(), "shared.xml");
     underTest.selectComponentsByQualifiers(dbSession, Collections.emptySet());
   }
 
   @Test
   public void find_sub_projects_by_component_keys() {
-    db.prepareDbUnit(getClass(), "multi-modules.xml");
+    ComponentDto project = db.components().insertPrivateProject();
+    ComponentDto module = db.components().insertComponent(newModuleDto(project).setRootUuid(project.uuid()));
+    ComponentDto subModule = db.components().insertComponent(newModuleDto(module).setRootUuid(module.uuid()));
+    ComponentDto directory = db.components().insertComponent(newDirectory(subModule, "src").setRootUuid(subModule.uuid()));
+    ComponentDto file = db.components().insertComponent(newFileDto(directory).setRootUuid(subModule.uuid()));
 
     // Sub project of a file
-    List<ComponentDto> results = underTest.selectSubProjectsByComponentUuids(dbSession, newArrayList("HIJK"));
-    assertThat(results).hasSize(1);
-    assertThat(results.get(0).getDbKey()).isEqualTo("org.struts:struts-data");
+    List<ComponentDto> results = null;
+    assertThat(underTest.selectSubProjectsByComponentUuids(dbSession, singletonList(file.uuid())))
+      .extracting(ComponentDto::getDbKey)
+      .containsExactlyInAnyOrder(subModule.getDbKey());
 
     // Sub project of a directory
-    results = underTest.selectSubProjectsByComponentUuids(dbSession, newArrayList("GHIJ"));
+    results = underTest.selectSubProjectsByComponentUuids(dbSession, singletonList("GHIJ"));
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getDbKey()).isEqualTo("org.struts:struts-data");
 
     // Sub project of a sub module
-    results = underTest.selectSubProjectsByComponentUuids(dbSession, newArrayList("FGHI"));
+    results = underTest.selectSubProjectsByComponentUuids(dbSession, singletonList("FGHI"));
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getDbKey()).isEqualTo("org.struts:struts");
 
     // Sub project of a module
-    results = underTest.selectSubProjectsByComponentUuids(dbSession, newArrayList("EFGH"));
+    results = underTest.selectSubProjectsByComponentUuids(dbSession, singletonList("EFGH"));
     assertThat(results).hasSize(1);
     assertThat(results.get(0).getDbKey()).isEqualTo("org.struts:struts");
 
     // Sub project of a project
-    assertThat(underTest.selectSubProjectsByComponentUuids(dbSession, newArrayList("ABCD"))).extracting("uuid").containsOnly("ABCD");
+    assertThat(underTest.selectSubProjectsByComponentUuids(dbSession, singletonList("ABCD"))).extracting("uuid").containsOnly("ABCD");
 
     // SUb projects of a component and a sub module
     assertThat(underTest.selectSubProjectsByComponentUuids(dbSession, newArrayList("HIJK", "FGHI"))).hasSize(2);
 
-    assertThat(underTest.selectSubProjectsByComponentUuids(dbSession, newArrayList("unknown"))).isEmpty();
+    assertThat(underTest.selectSubProjectsByComponentUuids(dbSession, singletonList("unknown"))).isEmpty();
 
     assertThat(underTest.selectSubProjectsByComponentUuids(dbSession, Collections.emptyList())).isEmpty();
   }
@@ -553,7 +545,8 @@ public class ComponentDaoTest {
   @Test
   public void select_provisioned() {
     OrganizationDto organization = db.organizations().insert();
-    ComponentDto provisionedProject = db.components().insertComponent(ComponentTesting.newPrivateProjectDto(organization).setDbKey("provisioned.project").setName("Provisioned Project"));
+    ComponentDto provisionedProject = db.components()
+      .insertComponent(ComponentTesting.newPrivateProjectDto(organization).setDbKey("provisioned.project").setName("Provisioned Project"));
     ComponentDto provisionedView = db.components().insertView(organization);
     String projectUuid = db.components().insertProjectAndSnapshot(ComponentTesting.newPrivateProjectDto(organization)).getComponentUuid();
     String disabledProjectUuid = db.components().insertProjectAndSnapshot(ComponentTesting.newPrivateProjectDto(organization).setEnabled(false)).getComponentUuid();
@@ -676,70 +669,6 @@ public class ComponentDaoTest {
     List<ComponentDto> components = new ArrayList<>();
     underTest.scrollForIndexing(dbSession, projectUuid, context -> components.add(context.getResultObject()));
     return assertThat(components).extracting(ComponentDto::uuid);
-  }
-
-  @Test
-  public void insert() {
-    db.prepareDbUnit(getClass(), "empty.xml");
-
-    ComponentDto componentDto = new ComponentDto()
-      .setOrganizationUuid("org1")
-      .setUuid("GHIJ")
-      .setUuidPath("ABCD.EFGH.GHIJ.")
-      .setProjectUuid("ABCD")
-      .setModuleUuid("EFGH")
-      .setModuleUuidPath(".ABCD.EFGH.")
-      .setDbKey("org.struts:struts-core:src/org/struts/RequestContext.java")
-      .setDeprecatedKey("org.struts:struts-core:src/org/struts/RequestContext.java")
-      .setName("RequestContext.java")
-      .setLongName("org.struts.RequestContext")
-      .setQualifier("FIL")
-      .setScope("FIL")
-      .setLanguage("java")
-      .setDescription("description")
-      .setPath("src/org/struts/RequestContext.java")
-      .setRootUuid("uuid_3")
-      .setCopyComponentUuid("uuid_5")
-      .setDeveloperUuid("uuid_7")
-      .setEnabled(true)
-      .setCreatedAt(DateUtils.parseDate("2014-06-18"))
-      .setTags(newArrayList("platform", "analyzers"));
-
-    underTest.insert(dbSession, componentDto);
-    dbSession.commit();
-
-    assertThat(componentDto.getId()).isNotNull();
-    db.assertDbUnit(getClass(), "insert-result.xml", "projects");
-  }
-
-  @Test
-  public void insert_disabled_component() {
-    db.prepareDbUnit(getClass(), "empty.xml");
-
-    ComponentDto componentDto = new ComponentDto()
-      .setOrganizationUuid("org1")
-      .setId(1L)
-      .setUuid("GHIJ")
-      .setUuidPath("ABCD.EFGH.GHIJ.")
-      .setProjectUuid("ABCD")
-      .setModuleUuid("EFGH")
-      .setModuleUuidPath(".ABCD.EFGH.")
-      .setDbKey("org.struts:struts-core:src/org/struts/RequestContext.java")
-      .setName("RequestContext.java")
-      .setLongName("org.struts.RequestContext")
-      .setQualifier("FIL")
-      .setScope("FIL")
-      .setLanguage("java")
-      .setPath("src/org/struts/RequestContext.java")
-      .setRootUuid("uuid_3")
-      .setEnabled(false)
-      .setCreatedAt(DateUtils.parseDate("2014-06-18"));
-
-    underTest.insert(dbSession, componentDto);
-    dbSession.commit();
-
-    assertThat(componentDto.getId()).isNotNull();
-    db.assertDbUnit(getClass(), "insert_disabled_component-result.xml", "projects");
   }
 
   @Test
