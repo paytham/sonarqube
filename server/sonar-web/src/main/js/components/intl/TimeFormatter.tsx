@@ -17,28 +17,13 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-/* @flow */
-import moment from 'moment';
-import React from 'react';
+import * as React from 'react';
+import { DateSource, FormattedTime } from 'react-intl';
 
-const TaskDate = (
-  { date, baseDate, format } /*: {
-  date: string,
-  baseDate: string,
-  format: string
-} */
-) => {
-  const m = moment(date);
-  const baseM = moment(baseDate);
-  const diff = date && baseDate ? m.diff(baseM, 'days') : 0;
+interface Props {
+  date: DateSource;
+}
 
-  return (
-    <td className="thin nowrap text-right">
-      {diff > 0 && <span className="text-warning little-spacer-right">{`(+${diff}d)`}</span>}
-
-      {date ? moment(date).format(format) : ''}
-    </td>
-  );
-};
-
-export default TaskDate;
+export default function TimeFormatter({ date }: Props) {
+  return <FormattedTime value={date} hour="numeric" minute="numeric" second="numeric" />;
+}

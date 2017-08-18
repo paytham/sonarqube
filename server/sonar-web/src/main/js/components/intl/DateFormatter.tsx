@@ -17,9 +17,17 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-/*::
-export type Task = {
-  incremental: boolean,
-  id: string
-};
-*/
+import * as React from 'react';
+import { DateSource, FormattedDate } from 'react-intl';
+
+interface Props {
+  date: DateSource;
+  long?: boolean;
+}
+
+export default function DateFormatter({ date, long }: Props) {
+  if (long) {
+    return <FormattedDate value={date} YYYY-MM-DD year="numeric" month="long" day="numeric" />;
+  }
+  return <FormattedDate value={date} YYYY-MM-DD year="numeric" month="2-digit" day="2-digit" />;
+}

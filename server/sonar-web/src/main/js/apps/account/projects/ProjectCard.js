@@ -18,10 +18,12 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 import React from 'react';
-import moment from 'moment';
 import { sortBy } from 'lodash';
+import { FormattedRelative } from 'react-intl';
 import { Link } from 'react-router';
+import DateTimeFormatter from '../../../components/intl/DateTimeFormatter';
 import Level from '../../../components/ui/Level';
+import Tooltip from '../../../components/controls/Tooltip';
 import { projectType } from './propTypes';
 import { translateWithParameters, translate } from '../../../helpers/l10n';
 
@@ -33,19 +35,24 @@ export default class ProjectCard extends React.PureComponent {
   render() {
     const { project } = this.props;
     const isAnalyzed = project.lastAnalysisDate != null;
-    const analysisMoment = isAnalyzed && moment(project.lastAnalysisDate);
     const links = sortBy(project.links, 'type');
 
     return (
       <div className="account-project-card clearfix">
         <aside className="account-project-side">
           {isAnalyzed
-            ? <div className="account-project-analysis" title={analysisMoment.format('LLL')}>
-                {translateWithParameters(
-                  'my_account.projects.analyzed_x',
-                  analysisMoment.fromNow()
-                )}
-              </div>
+            ? <Tooltip
+                overlay={<DateTimeFormatter date={project.lastAnalysisDate} />}
+                placement="right">
+                <div className="account-project-analysis">
+                  <FormattedRelative value={project.lastAnalysisDate}>
+                    {relativeDate =>
+                      <span>
+                        {translateWithParameters('my_account.projects.analyzed_x', relativeDate)}
+                      </span>}
+                  </FormattedRelative>
+                </div>
+              </Tooltip>
             : <div className="account-project-analysis">
                 {translate('my_account.projects.never_analyzed')}
               </div>}

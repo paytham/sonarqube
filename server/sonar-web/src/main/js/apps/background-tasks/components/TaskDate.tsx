@@ -17,23 +17,28 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-/* @flow */
-import moment from 'moment';
-import React from 'react';
-/*:: import type { Task } from '../types'; */
+import * as React from 'react';
+import TimeFormatter from '../../../components/intl/TimeFormatter';
+import { differenceInDays, isValidDate } from '../../../helpers/dates';
 
-function isAnotherDay(a, b) {
-  return !moment(a).isSame(moment(b), 'day');
+interface Props {
+  date: string;
+  baseDate: string;
 }
 
-const TaskDay = ({ task, prevTask } /*: { task: Task, prevTask: ?Task } */) => {
-  const shouldDisplay = !prevTask || isAnotherDay(task.submittedAt, prevTask.submittedAt);
+export default function TaskDate({ date, baseDate }: Props) {
+  const parsedDate = new Date(date);
+  const parsedBaseDate = new Date(baseDate);
+  const diff =
+    date && baseDate && isValidDate(parsedDate) && isValidDate(parsedBaseDate)
+      ? differenceInDays(parsedDate, parsedBaseDate)
+      : 0;
 
   return (
     <td className="thin nowrap text-right">
-      {shouldDisplay ? moment(task.submittedAt).format('LL') : ''}
+      {diff > 0 && <span className="text-warning little-spacer-right">{`(+${diff}d)`}</span>}
+
+      {date && isValidDate(parsedDate) ? <TimeFormatter date={parsedDate} /> : ''}
     </td>
   );
-};
-
-export default TaskDay;
+}

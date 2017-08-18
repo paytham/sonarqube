@@ -17,17 +17,24 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-// @flow
-import React from 'react';
+import * as React from 'react';
+import { IntlProvider } from 'react-intl';
 import GlobalLoading from './GlobalLoading';
-import { requestMessages } from '../../helpers/l10n';
+import { DEFAULT_LANGUAGE, requestMessages } from '../../helpers/l10n';
 
-export default class LocalizationContainer extends React.PureComponent {
-  /*:: mounted: boolean; */
+interface Props {
+  children?: any;
+}
 
-  state = {
-    loading: true
-  };
+interface State {
+  loading: boolean;
+  lang?: string;
+}
+
+export default class LocalizationContainer extends React.PureComponent<Props, State> {
+  mounted: boolean;
+
+  state: State = { loading: true };
 
   componentDidMount() {
     this.mounted = true;
@@ -38,9 +45,9 @@ export default class LocalizationContainer extends React.PureComponent {
     this.mounted = false;
   }
 
-  finishLoading = () => {
+  finishLoading = (lang: string) => {
     if (this.mounted) {
-      this.setState({ loading: false });
+      this.setState({ loading: false, lang });
     }
   };
 
@@ -48,6 +55,12 @@ export default class LocalizationContainer extends React.PureComponent {
     if (this.state.loading) {
       return <GlobalLoading />;
     }
-    return this.props.children;
+    return (
+      <IntlProvider
+        locale={this.state.lang || DEFAULT_LANGUAGE}
+        defaultLocale={this.state.lang || DEFAULT_LANGUAGE}>
+        {this.props.children}
+      </IntlProvider>
+    );
   }
 }
