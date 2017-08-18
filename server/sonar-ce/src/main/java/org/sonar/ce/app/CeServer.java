@@ -56,12 +56,14 @@ public class CeServer implements Monitored {
   private volatile boolean stopAwait = false;
 
   private final ComputeEngine computeEngine;
+  private final StopFlagContainer stopFlagContainer;
   @CheckForNull
   private CeMainThread ceMainThread = null;
 
   @VisibleForTesting
-  protected CeServer(ComputeEngine computeEngine, MinimumViableSystem mvs) {
+  protected CeServer(ComputeEngine computeEngine, MinimumViableSystem mvs, StopFlagContainer stopFlagContainer) {
     this.computeEngine = computeEngine;
+    this.stopFlagContainer = stopFlagContainer;
     mvs
       .checkWritableTempDir()
       .checkRequiredJavaOptions(ImmutableMap.of("file.encoding", "UTF-8"));
@@ -120,9 +122,11 @@ public class CeServer implements Monitored {
     ProcessEntryPoint entryPoint = ProcessEntryPoint.createForArguments(args);
     Props props = entryPoint.getProps();
     new CeProcessLogging().configure(props);
+    StopFlagContainer stopFlagContainer = new StopFlagContainer();
     CeServer server = new CeServer(
-      new ComputeEngineImpl(props, new ComputeEngineContainerImpl()),
-      new MinimumViableSystem());
+      new ComputeEngineImpl(props, new ComputeEngineContainerImpl(stopFlagContainer)),
+      new MinimumViableSystem(),
+      stopFlagContainer);
     entryPoint.launch(server);
   }
 
@@ -200,6 +204,10 @@ public class CeServer implements Monitored {
     public void stopIt() {
       // stop looping indefinitely
       this.stop = true;
+
+      // Do not start new compute engine tasks in the grace period
+      stopFlagContainer.onStop();
+
       // interrupt current thread in case its waiting for WebServer
       interrupt();
     }

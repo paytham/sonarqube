@@ -33,6 +33,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.sonar.api.utils.System2;
 import org.sonar.api.utils.internal.AlwaysIncreasingSystem2;
+import org.sonar.ce.app.StopFlagContainer;
 import org.sonar.ce.monitoring.CEQueueStatus;
 import org.sonar.ce.monitoring.CEQueueStatusImpl;
 import org.sonar.core.util.UuidFactory;
@@ -72,7 +73,7 @@ public class InternalCeQueueImplTest {
   private UuidFactory uuidFactory = UuidFactoryImpl.INSTANCE;
   private CEQueueStatus queueStatus = new CEQueueStatusImpl(dbTester.getDbClient());
   private DefaultOrganizationProvider defaultOrganizationProvider = mock(DefaultOrganizationProvider.class);
-  private InternalCeQueue underTest = new InternalCeQueueImpl(system2, dbTester.getDbClient(), uuidFactory, queueStatus, defaultOrganizationProvider);
+  private InternalCeQueue underTest = new InternalCeQueueImpl(system2, dbTester.getDbClient(), uuidFactory, queueStatus, defaultOrganizationProvider, new StopFlagContainer());
 
   @Before
   public void setUp() throws Exception {

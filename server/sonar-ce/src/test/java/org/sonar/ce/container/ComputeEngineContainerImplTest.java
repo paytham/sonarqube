@@ -38,6 +38,7 @@ import org.sonar.api.utils.DateUtils;
 import org.sonar.api.utils.System2;
 import org.sonar.ce.CeDistributedInformationImpl;
 import org.sonar.ce.StandaloneCeDistributedInformation;
+import org.sonar.ce.app.StopFlagContainer;
 import org.sonar.ce.cluster.HazelcastClientWrapperImpl;
 import org.sonar.ce.cluster.HazelcastTestHelper;
 import org.sonar.db.DbTester;
@@ -65,7 +66,7 @@ public class ComputeEngineContainerImplTest {
   @Rule
   public DbTester dbTester = DbTester.create(System2.INSTANCE);
 
-  private ComputeEngineContainerImpl underTest = new ComputeEngineContainerImpl();
+  private ComputeEngineContainerImpl underTest = new ComputeEngineContainerImpl(new StopFlagContainer());
 
   @Test
   public void constructor_does_not_create_container() {
@@ -139,6 +140,7 @@ public class ComputeEngineContainerImplTest {
         + 47 // content of DaoModule
         + 3 // content of EsSearchModule
         + 58 // content of CorePropertyDefinitions
+        + 1 // StopFlagContainer
     );
     assertThat(
       picoContainer.getComponentAdapters().stream()

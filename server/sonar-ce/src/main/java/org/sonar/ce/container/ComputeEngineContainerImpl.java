@@ -45,6 +45,7 @@ import org.sonar.ce.CeHttpModule;
 import org.sonar.ce.CeQueueModule;
 import org.sonar.ce.CeTaskCommonsModule;
 import org.sonar.ce.StandaloneCeDistributedInformation;
+import org.sonar.ce.app.StopFlagContainer;
 import org.sonar.ce.cleaning.CeCleaningModule;
 import org.sonar.ce.cluster.HazelcastClientWrapperImpl;
 import org.sonar.ce.db.ReadOnlyPropertiesDao;
@@ -150,10 +151,15 @@ import org.sonarqube.ws.Rules;
 
 public class ComputeEngineContainerImpl implements ComputeEngineContainer {
 
+  private final StopFlagContainer stopFlagContainer;
   @CheckForNull
   private ComponentContainer level1;
   @CheckForNull
   private ComponentContainer level4;
+
+  public ComputeEngineContainerImpl(StopFlagContainer stopFlagContainer) {
+    this.stopFlagContainer = stopFlagContainer;
+  }
 
   @Override
   public ComputeEngineContainer start(Props props) {
@@ -161,7 +167,8 @@ public class ComputeEngineContainerImpl implements ComputeEngineContainer {
     this.level1
       .add(props.rawProperties())
       .add(level1Components())
-      .add(toArray(CorePropertyDefinitions.all()));
+      .add(toArray(CorePropertyDefinitions.all()))
+      .add(stopFlagContainer);
     configureFromModules(this.level1);
     this.level1.startComponents();
 

@@ -33,6 +33,7 @@ import org.apache.log4j.Logger;
 import org.sonar.api.ce.ComputeEngineSide;
 import org.sonar.api.utils.System2;
 import org.sonar.api.utils.log.Loggers;
+import org.sonar.ce.app.StopFlagContainer;
 import org.sonar.ce.monitoring.CEQueueStatus;
 import org.sonar.core.util.UuidFactory;
 import org.sonar.db.DbClient;
@@ -54,23 +55,25 @@ public class InternalCeQueueImpl extends CeQueueImpl implements InternalCeQueue 
   private final System2 system2;
   private final DbClient dbClient;
   private final CEQueueStatus queueStatus;
+  private final StopFlagContainer stopFlagContainer;
 
   // state
   private AtomicBoolean peekPaused = new AtomicBoolean(false);
 
   public InternalCeQueueImpl(System2 system2, DbClient dbClient, UuidFactory uuidFactory, CEQueueStatus queueStatus,
-    DefaultOrganizationProvider defaultOrganizationProvider) {
+    DefaultOrganizationProvider defaultOrganizationProvider, StopFlagContainer stopFlagContainer) {
     super(dbClient, uuidFactory, defaultOrganizationProvider);
     this.system2 = system2;
     this.dbClient = dbClient;
     this.queueStatus = queueStatus;
+    this.stopFlagContainer = stopFlagContainer;
   }
 
   @Override
   public Optional<CeTask> peek(String workerUuid) {
     requireNonNull(workerUuid, "workerUuid can't be null");
 
-    if (peekPaused.get()) {
+    if (peekPaused.get() || stopFlagContainer.isStopping()) {
       return Optional.empty();
     }
     try (DbSession dbSession = dbClient.openSession(false)) {

@@ -245,7 +245,7 @@ public class CeServerTest {
   private CeServer newCeServer(ComputeEngine computeEngine) throws IOException {
     checkState(this.underTest == null, "Only one CeServer can be created per test method");
     this.underTest = new CeServer(
-      computeEngine, minimumViableSystem);
+      computeEngine, minimumViableSystem, new StopFlagContainer());
     return underTest;
   }
 
